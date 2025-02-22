@@ -1,0 +1,5 @@
+# ignore old_data folder
+old_data/
+
+# ignore data folder
+data/
