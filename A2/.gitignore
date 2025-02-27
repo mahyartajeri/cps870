@@ -3,3 +3,6 @@ old_data/
 
 # data folder
 data/
+
+# processed data folder
+processed_data/
