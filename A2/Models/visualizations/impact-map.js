@@ -96,8 +96,8 @@ class Edge {
     }
 
     draw() {
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'hsla(55, 85.60%, 40.80%, 0.50)';
+        ctx.lineWidth = (this.weight ** 2) / 1.5;
         ctx.beginPath();
         ctx.moveTo(this.from.x, this.from.y);
         ctx.lineTo(this.to.x, this.to.y);
