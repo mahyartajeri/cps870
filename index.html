@@ -5,62 +5,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Impact Map</title>
-        <style>
-            /* Slider container positioned over canvas */
-            .slider-container-1 {
-                position: absolute;
-                bottom: 50px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 500px;
-                text-align: center;
-            }
-
-            .slider-container-2 {
-                position: absolute;
-                bottom: 150px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 500px;
-                text-align: center;
-            }
-
-            /* The range slider */
-            .slider {
-                width: 100%;
-                -webkit-appearance: none;
-                appearance: none;
-                background: #ddd;
-                height: 10px;
-                border-radius: 3px;
-                outline: none;
-            }
-
-            .slider::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 30px;
-                height: 30px;
-                background: #4CAF50;
-                border-radius: 50%;
-                cursor: pointer;
-            }
-
-            /* Tooltip above the slider */
-            .tooltip {
-                position: absolute;
-                top: -60px;
-                background: #4CAF50;
-                color: white;
-                padding: 5px 10px;
-                border-radius: 5px;
-                font-size: 24pt;
-                font-family: Arial, Helvetica, sans-serif;
-                transform: translateX(-50%);
-                white-space: nowrap;
-                transition: 0.1s ease-out;
-            }
-        </style>
+        <link rel="stylesheet" href="style.css">
     </head>
 
     <body style="height: 98vh; display: flex; justify-content: center; align-items: center;">
@@ -73,7 +18,10 @@
             <input type="range" id="slider2" class="slider" min="0" max="100" value="50" step="0.1">
         </div>
         <canvas id="impact-map" style="border: 1px solid black;"></canvas>
+        <div class="overlay" id="myOverlay">
+        </div>
 
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script id="impact-map-data" type="application/json">
             {
                 "product launch": {
