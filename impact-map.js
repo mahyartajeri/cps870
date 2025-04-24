@@ -340,6 +340,378 @@ function setupMouseEvents() {
         isDragging = false;
     });
 
+    // Add touch events for mobile devices
+    canvas.addEventListener('touchstart', (event) => {
+        isDragging = true;
+        lastX = event.touches[0].clientX;
+        lastY = event.touches[0].clientY;
+    });
+
+    canvas.addEventListener('touchmove', (event) => {
+        if (isDragging) {
+            const touchX = event.touches[0].clientX;
+            const touchY = event.touches[0].clientY;
+            VIEWSTATES.VIEWPORT_ORIGIN.x += (touchX - lastX) / VIEWSTATES.SCALE;
+            VIEWSTATES.VIEWPORT_ORIGIN.y += (touchY - lastY) / VIEWSTATES.SCALE;
+            lastX = touchX;
+            lastY = touchY;
+
+            draw();
+        }
+    });
+    canvas.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+
+    // Add click event to show overlay
+    canvas.addEventListener('click', (e) => {
+        const pos = absoluteToRelative(e.clientX, e.clientY);
+        for (let node of impactGraph.nodes) {
+            if (Math.abs(node.x - pos.x) < node.diameter / 2 && Math.abs(node.y - pos.y) < node.diameter / 2) {
+                const overlayContent = document.createElement('div');
+                overlayContent.className = 'overlay-content';
+
+                rawTotalChangeAverage = node.companyNodes.reduce((acc, curr) => acc + curr.totalChange, 0) / node.companyNodes.length;
+                // only include pValues < 0.05 in the average
+                meaningfulTotalChangeAverage = node.companyNodes.filter(companyNode => companyNode.pValue < 0.05).reduce((acc, curr) => acc + curr.totalChange, 0) / node.companyNodes.filter(companyNode => companyNode.pValue < 0.05).length;
+
+                const rawTotalChangeAverageText = document.createElement('p');
+                rawTotalChangeAverageText.innerHTML = `Raw Total Change Average: <span class="emphasis">${(rawTotalChangeAverage * 100).toFixed(2)}%</span>`;
+                rawTotalChangeAverageText.className = 'overlay-stat';
+
+                const meaningfulTotalChangeAverageText = document.createElement('p');
+                if (!isNaN(meaningfulTotalChangeAverage)) {
+                    meaningfulTotalChangeAverageText.innerHTML = `Meaningful Total Change Average (p < .05): <span class="emphasis">${(meaningfulTotalChangeAverage * 100).toFixed(2)}%</span>`;
+
+                } else {
+                    meaningfulTotalChangeAverageText.innerHTML = `Meaningful Total Change Average (p < .05): <span class="emphasis">N/A</span>`;
+                }
+                meaningfulTotalChangeAverageText.className = 'overlay-stat';
+
+
+                // add companies and stats as table
+                const table = document.createElement('table');
+                table.className = 'overlay-table';
+                const headerRow = document.createElement('tr');
+                const header0 = document.createElement('th');
+                header0.innerHTML = '#';
+
+                const header1 = document.createElement('th');
+                header1.innerHTML = 'Company';
+                const header2 = document.createElement('th');
+                header2.innerHTML = 'Ticker';
+                const header3 = document.createElement('th');
+                header3.innerHTML = 'Total Change';
+                const header4 = document.createElement('th');
+                header4.innerHTML = 'P-Value';
+
+                headerRow.appendChild(header0);
+                headerRow.appendChild(header1);
+                headerRow.appendChild(header2);
+                headerRow.appendChild(header3);
+                headerRow.appendChild(header4);
+                table.appendChild(headerRow);
+
+                for (let companyNode of node.companyNodes) {
+                    const row = document.createElement('tr');
+                    const cell0 = document.createElement('td');
+                    cell0.innerHTML = companyNode.id;
+
+                    const cell1 = document.createElement('td');
+                    cell1.innerHTML = companyNode.name;
+                    const cell2 = document.createElement('td');
+                    cell2.innerHTML = companyNode.ticker;
+                    const cell3 = document.createElement('td');
+                    cell3.innerHTML = companyNode.totalChange.toFixed(5);
+                    const cell4 = document.createElement('td');
+                    cell4.innerHTML = companyNode.pValue.toFixed(5);
+
+                    row.appendChild(cell0);
+                    row.appendChild(cell1);
+                    row.appendChild(cell2);
+                    row.appendChild(cell3);
+                    row.appendChild(cell4);
+                    table.appendChild(row);
+                }
+
+
+                // Store data to use in chart visualization
+                const chartData = node.companyNodes.map(companyNode => {
+                    return {
+                        name: companyNode.name,
+                        ticker: companyNode.ticker,
+                        totalChange: companyNode.totalChange,
+                        pValue: companyNode.pValue
+                    };
+                });
+                // Create a chart using Chart.js
+                const chartCanvas = document.createElement('canvas');
+                chartCanvas.id = 'chartCanvas';
+                // change canvas background colour to transparent white
+                chartCanvas.style.backgroundColor = 'rgba(255, 255, 255, 0.0)';
+
+                const chartCtx = chartCanvas.getContext('2d');
+                const chartLabels = chartData.map(data => data.name);
+                const chartValues = chartData.map(data => data.totalChange);
+                const chartPValues = chartData.map(data => data.pValue);
+
+                // bar chart with bubbles at the top of each bar
+                const chart = new Chart(chartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [
+                            {
+                                label: 'Total Change',
+                                data: chartValues,
+                                backgroundColor: chartValues.map(value =>
+                                    value < 0 ? 'rgba(231, 76, 60, 0.8)' : 'rgba(46, 204, 113, 0.8)'
+                                ),
+                                borderColor: chartValues.map(value =>
+                                    value < 0 ? 'rgba(192, 57, 43, 1)' : 'rgba(39, 174, 96, 1)'
+                                ),
+                                borderWidth: 1,
+                            },
+                            {
+                                label: 'Inverse P-Value (radius)',
+                                data: chartValues.map((v, index) => ({ x: index, y: v, r: Math.min(100, 2 / Math.sqrt(chartPValues[index])) })), // scale pValue to 100 for better visibility
+                                type: 'bubble',
+                                // tooltip
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (tooltipItem) {
+                                            return `Total Change: ${(chartValues[tooltipItem.dataIndex] >= 0 ? "+" : '-') + (chartValues[tooltipItem.dataIndex] * 100).toFixed(5)}% P-Value: ${chartPValues[tooltipItem.dataIndex].toFixed(5)}`;
+                                        }
+                                    }
+                                },
+                                backgroundColor: 'rgba(77, 139, 238, 0.55)',
+                                borderColor: 'rgb(47, 96, 232)',
+                                borderWidth: 1,
+                            }
+                        ]
+                    },
+                    options: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+
+                        responsive: true,
+                        // maintainAspectRatio: false, // ✨ allows dynamic resizing
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+
+                            },
+                            x: {
+                                // don;'t show labels on x axis
+                                ticks: {
+                                    display: false // Hide x-axis labels
+                                },
+                            }
+
+                        }
+                        , plugins: {
+                            title: {
+                                display: true,
+                                text: 'Total Change by Company with P-Value',
+                                color: 'black',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 10
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // using p values < 0.05 make another bar chart underneath the first one
+                const chartCanvas2 = document.createElement('canvas');
+                chartCanvas2.id = 'chartCanvas2';
+                // change canvas background colour to transparent white
+                chartCanvas2.style.backgroundColor = 'rgba(255, 255, 255, 0.0)';
+                const chartCtx2 = chartCanvas2.getContext('2d');
+                const chartLabels2 = chartData.filter(data => data.pValue < 0.05).map(data => data.name);
+                const chartValues2 = chartData.filter(data => data.pValue < 0.05).map(data => data.totalChange);
+                // bar chart
+
+                const chart2 = new Chart(chartCtx2, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels2,
+                        datasets: [
+                            {
+                                label: 'Total Change',
+                                data: chartValues2,
+                                backgroundColor: chartValues2.map(value =>
+                                    value < 0 ? 'rgba(231, 76, 60, 0.8)' : 'rgba(46, 204, 113, 0.8)'
+                                ),
+                                borderColor: chartValues2.map(value =>
+                                    value < 0 ? 'rgba(192, 57, 43, 1)' : 'rgba(39, 174, 96, 1)'
+                                ),
+                                borderWidth: 1,
+                            }
+                        ]
+                    },
+                    options: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+
+                        responsive: true,
+                        // maintainAspectRatio: false, // ✨ allows dynamic resizing
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+
+                            },
+                            x: {
+                                ticks: {
+                                    autoSkip: false, // Prevent skipping
+                                    maxRotation: 75, // Rotate labels
+                                    minRotation: 75
+
+                                }
+                            }
+
+                        }
+                        , plugins: {
+                            title: {
+                                display: true,
+                                text: `Total Change with P-Value < 0.05 (${chartLabels2.length} total)`,
+                                color: 'black',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 10
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // make third chart (radar chart) to show correlation with other events
+                const chartCanvas3 = document.createElement('canvas');
+                chartCanvas3.id = 'chartCanvas3';
+                // change canvas background colour to transparent white
+                chartCanvas3.style.backgroundColor = 'rgba(255, 255, 255, 0.0)';
+                const chartCtx3 = chartCanvas3.getContext('2d');
+                const threshold = 5;
+                const fixedChangeTolerance = 5; // 5%
+                const chartValues3 = impactGraph.nodes.map(n => {
+                    const commonCompanies = n.companyNodes.filter(companyNode => {
+                        return node.companyNodes.some(c => c.name === companyNode.name && Math.abs(companyNode.totalChange - c.totalChange) < fixedChangeTolerance / 100);
+                    });
+                    return commonCompanies.length;
+
+                }).filter(value => value > threshold); // filter out values > 5
+                chartLabels3 = impactGraph.nodes.map(node => node.name).filter((_, index) => chartValues3[index] > threshold); // filter out values > 5
+                // radar chart
+                const chart3 = new Chart(chartCtx3, {
+                    type: 'radar',
+                    data: {
+                        labels: chartLabels3,
+                        datasets: [
+                            {
+                                label: `Events with ${threshold} Common Companies with < 5% total change similarity`,
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (tooltipItem) {
+                                            return `Common Companies: ${tooltipItem.dataIndex}`;
+                                        }
+                                    }
+                                },
+                                data: chartValues3,
+                                backgroundColor: 'rgba(77, 139, 238, 0.55)',
+                                borderColor: 'rgb(47, 96, 232)',
+                                borderWidth: 1,
+                            }
+                        ]
+                    },
+                    options: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+
+                        responsive: true,
+                        // maintainAspectRatio: false, // ✨ allows dynamic resizing
+                        scales: {
+                            r: {
+                                beginAtZero: true,
+
+                            }
+                        }
+                        , plugins: {
+                            title: {
+                                display: true,
+                                text: `Similar Events`,
+                                color: 'black',
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                },
+                                padding: {
+                                    top: 10,
+                                    bottom: 10
+                                }
+                            }
+                        }
+                    }
+                });
+                // add chartCanvas3 to infoContainer
+
+
+                // create infoContainer div to hold info
+                const infoContainer = document.createElement('div');
+                infoContainer.className = 'info-container';
+
+                // add close button
+                const closeButton = document.createElement('button');
+                closeButton.innerHTML = 'Close';
+                closeButton.className = 'close-btn';
+                closeButton.onclick = function () {
+                    hideOverlay();
+                }
+                infoContainer.appendChild(closeButton);
+
+                // add event name
+                const eventName = document.createElement('h2');
+                eventName.innerHTML = node.name;
+                eventName.className = 'overlay-event-name';
+                infoContainer.appendChild(eventName);
+                overlayContent.appendChild(infoContainer);
+
+                // add raw and meaningful total change average
+                infoContainer.appendChild(rawTotalChangeAverageText);
+                infoContainer.appendChild(meaningfulTotalChangeAverageText);
+
+                // add charts and table to infoContainer
+
+                infoContainer.appendChild(chartCanvas);
+                if (chartLabels2.length > 0) {
+                    infoContainer.appendChild(chartCanvas2);
+                }
+                infoContainer.appendChild(chartCanvas3);
+
+                infoContainer.appendChild(table);
+
+
+
+
+
+
+
+
+                // make overlayContent scrollable
+                overlayContent.style.overflowY = 'scroll';
+                overlayContent.style.maxHeight = '80vh';
+                showOverlay(overlayContent);
+
+                break;
+            }
+        }
+    });
+
 
 
 }
@@ -371,6 +743,17 @@ function calculateAdjacencyMatrix() {
     }
 
     return adjacencyMatrix;
+}
+
+function showOverlay(overlayContent) {
+    const overlay = document.getElementById('myOverlay');
+    overlay.innerHTML = ''; // Clear previous content
+    overlay.appendChild(overlayContent);
+    overlay.style.display = 'flex';
+}
+
+function hideOverlay() {
+    document.getElementById('myOverlay').style.display = 'none';
 }
 
 
