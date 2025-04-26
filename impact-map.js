@@ -600,14 +600,19 @@ function setupMouseEvents() {
                 const chartCtx3 = chartCanvas3.getContext('2d');
                 const threshold = 5;
                 const fixedChangeTolerance = 5; // 5%
-                const chartValues3 = impactGraph.nodes.map(n => {
+                const chart3Tuples = impactGraph.nodes.map(n => {
                     const commonCompanies = n.companyNodes.filter(companyNode => {
                         return node.companyNodes.some(c => c.name === companyNode.name && Math.abs(companyNode.totalChange - c.totalChange) < fixedChangeTolerance / 100);
                     });
-                    return commonCompanies.length;
+                    return {
+                        name: n.name,
+                        value: commonCompanies.length,
+                    };
 
-                }).filter(value => value > threshold); // filter out values > 5
-                chartLabels3 = impactGraph.nodes.map(node => node.name).filter((_, index) => chartValues3[index] > threshold); // filter out values > 5
+                }).filter(t => t.value > threshold && t.name !== node.name);
+                console.log(chart3Tuples);
+                chartLabels3 = chart3Tuples.map(t => t.name);
+                chartValues3 = chart3Tuples.map(t => t.value);
                 // radar chart
                 const chart3 = new Chart(chartCtx3, {
                     type: 'radar',
